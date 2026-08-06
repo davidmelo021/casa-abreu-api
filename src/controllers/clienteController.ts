@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import pool from '../database/connection';
 import { AuthRequest } from '../middleware/authMiddleware';
+import bcrypt from 'bcryptjs';
 
 export async function getPerfil(req: AuthRequest, res: Response) {
   try {
@@ -62,5 +63,29 @@ export async function removeFavorito(req: AuthRequest, res: Response) {
     res.json({ message: 'Favorito removido!' });
   } catch {
     res.status(500).json({ message: 'Erro ao remover favorito' });
+  }
+}
+
+export async function updateSenha(req: AuthRequest, res: Response) {
+  const { senhaAtual, novaSenha } = req.body;
+
+  try {
+    const [rows]: any = await pool.execute(
+      'SELECT * FROM clientes WHERE id = ?', [req.clienteId]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ message: 'Cliente não encontrado' });
+
+    const cliente = rows[0];
+    const senhaCorreta = await bcrypt.compare(senhaAtual, cliente.senha);
+
+    if (!senhaCorreta) return res.status(401).json({ message: 'Senha atual incorreta' });
+
+    const hash = await bcrypt.hash(novaSenha, 10);
+    await pool.execute('UPDATE clientes SET senha = ? WHERE id = ?', [hash, req.clienteId]);
+
+    res.json({ message: 'Senha atualizada com sucesso!' });
+  } catch {
+    res.status(500).json({ message: 'Erro ao atualizar senha' });
   }
 }
